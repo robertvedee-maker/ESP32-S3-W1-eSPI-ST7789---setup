@@ -1,16 +1,8 @@
-#include "daynight.h"
-#include "network_logic.h" // Volgorde is hier erg belangrijk. niet aanpassen!
-#include <Arduino.h>
-#include <helpers.h>
-#include <secret.h>
+/*
+ * (c)2026 R van Dorland
+ */
 
-#include <WiFi.h>
-// #include <time.h>
-// #include <SPI.h>
-
-#include <TFT_eSPI.h>
 // Hardware-specific library
-// #include "user_setup.h" // User setup file
 
 // Sketch to draw an analogue clock on the screen
 // This uses anti-aliased drawing functions that are built into TFT_eSPI
@@ -21,23 +13,47 @@
 // Based on a sketch by DavyLandman:
 // https://github.com/Bodmer/TFT_eSPI/issues/905
 
-bool eersteStart = true; // Zorgt ervoor dat info éénmalig getoond wordt
+#include "daynight.h"
+#include "network_logic.h" // Volgorde is hier erg belangrijk. niet aanpassen!
+#include <Adafruit_AHTX0.h>
+#include <Adafruit_BMP280.h>
+#include <Arduino.h>
+#include <TFT_eSPI.h>
+#include <WiFi.h>
+#include <helpers.h>
+#include <secret.h>
 
-// const int blPin = 13; // Removed duplicate declaration - defined in header file
+Adafruit_BMP280 bmp; // use I2C interface
+Adafruit_Sensor* bmp_temp = bmp.getTemperatureSensor();
+Adafruit_Sensor* bmp_pressure = bmp.getPressureSensor();
+String bmp_pressure_str = "----"; // Variable to store pressure as string
+String bmp_temp_str = "----"; // Variable to store temperature as string
+String bmp_alt_str = "----"; // Variable to store altitude as string
+String bmp_hum_str = "----"; // Variable to store humidity as string
+String bmp_seaLevel_str = "----"; // Variable to store sea level pressure as string
+
+Adafruit_AHTX0 aht;
+Adafruit_Sensor* aht_temp;
+Adafruit_Sensor* aht_humidity;
+
+bool eersteStart = true; // Zorgt ervoor dat info éénmalig getoond wordt
+extern bool isNightMode; // Track day/night mode for clock display
+
+// const int xxPin = ##; //  --- gedefinieerd in pio.ini ---
 const int freq = 5000; // 5 kHz is ideaal voor backlights
 const int resolution = 8; // 8-bit resolutie (0 - 255)
 
 #include "NotoSansBold15.h"
 
-extern TFT_eSPI tft; // Declare external tft object
-TFT_eSprite clockFace = TFT_eSprite(&tft);
+extern TFT_eSPI tft; // TFT instance from helpers.h
+TFT_eSprite clockFace = TFT_eSprite(&tft); // Sprite for clock face
 
 #define CLOCK_X_POS 10
 #define CLOCK_Y_POS 10
 
 #define CLOCK_FG TFT_SKYBLUE
 #define CLOCK_BG TFT_NAVY
-#define SECCOND_FG TFT_RED
+#define SECOND_FG TFT_RED
 #define LABEL_FG TFT_GOLD
 #define BORDER TFT_LIGHTGREY
 
@@ -62,18 +78,10 @@ TFT_eSprite clockFace = TFT_eSprite(&tft);
 // Time h:m:s
 uint8_t h = 0, m = 0, s = 0;
 
-// // Global time variables updated by updateLocalTime()
-// uint8_t currentHour = 0;
-// uint8_t currentMinute = 0;
-// uint8_t currentSecond = 0;
-
 // float time_secs = h * 3600 + m * 60 + s;
 // Bereken het totaal aantal seconden sinds middernacht op basis van JOUW variabelen
 // Note: time_secs is now calculated in loop() using currentHour, currentMinute, currentSecond
 float time_secs = 0;
-
-// Load header after time_secs global variable has been created so it is in scope
-// #include "NTP_Time.h" // Attached to this sketch, see that tab for library needs
 
 // Time for next tick
 uint32_t targetTime = 0;
@@ -83,14 +91,80 @@ static void renderFace(float t);
 void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a);
 void updateLocalTime(); // Add forward declaration
 
-// =========================================================================
-// Setup
-// =========================================================================
+/* =========================================================================
+ *                                   Setup
+ * =========================================================================
+ */
 void setup()
 {
+    Wire.begin(4, 5); // SDA = GPIO4, SCL = GPIO5
+    aht.begin();
+
     Serial.begin(115200);
+    Serial.flush(); // Forceer de USB-stack om de verbinding te verversen
+    // Serial.setDebugOutput(true);     // Forceer de USB poort om te herstarten
+
+    uint32_t start = millis();
+    while (!Serial && (millis() - start) < 2000) {
+        delay(10);
+    }
+    // Print een paar extra lege regels om de buffer "schoon" te maken
+    Serial.println("\n\n");
+    // Serial.println("--- DEBUG START ---");
     Serial.println("Booting...");
 
+    Serial.println(F("BMP280 Sensor event test"));
+    delay(1000);
+    unsigned status;
+    // status = bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID);
+    status = bmp.begin(0x77);
+    if (!status) {
+        Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
+                         "try a different address!"));
+        Serial.print("SensorID was: 0x");
+        Serial.println(bmp.sensorID(), 16);
+        Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
+        Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
+        Serial.print("        ID of 0x60 represents a BME 280.\n");
+        Serial.print("        ID of 0x61 represents a BME 680.\n");
+        while (1)
+            delay(10);
+    }
+
+    /* Default settings from datasheet. */
+    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL, /* Operating Mode. */
+        Adafruit_BMP280::SAMPLING_X2, /* Temp. oversampling */
+        Adafruit_BMP280::SAMPLING_X16, /* Pressure oversampling */
+        Adafruit_BMP280::FILTER_X16, /* Filtering. */
+        Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+
+    bmp_temp->printSensorDetails();
+    bmp_pressure->printSensorDetails();
+
+    Serial.println("Adafruit AHT10/AHT20 test!");
+
+    if (!aht.begin()) {
+        Serial.println("Failed to find AHT10/AHT20 chip");
+        while (1) {
+            delay(10);
+        }
+    }
+
+    Serial.println("AHT10/AHT20 Found!");
+    aht_temp = aht.getTemperatureSensor();
+    aht_temp->printSensorDetails();
+
+    aht_humidity = aht.getHumiditySensor();
+    aht_humidity->printSensorDetails();
+
+    delay(2000);
+
+    Serial.println(F("Setup started"));
+    delay(2000);
+
+    // Setup complete the backlight PWM
+    // setupBacklight();
+    // 1. Backlight PWM setup for ESP32 Arduino Core v2.x
     ledcSetup(0, freq, resolution);
     ledcAttachPin(TFT_BL, 0);
 
@@ -98,14 +172,10 @@ void setup()
     setupWiFi(SECRET_SSID, SECRET_PASSWORD);
 
     // fetchWeather(); // Haal direct het eerste weerbericht op
-    
-    // Note: ledcAttach is already used correctly for ESP32 Arduino Core v3.x
-    // ledcSetup + ledcAttachPin on lines 80-81 should be replaced with:
-    // ledcAttach(TFT_BL, freq, resolution);
 
     if (WiFi.status() == WL_CONNECTED) {
         toonNetwerkInfo(); // Deze functie bevat de 'rtc_info->reason' check
-        setupOTA(); //
+        setupOTA(); // Start OTA service nadat WiFi verbonden is
     }
 
     // 3. Tijd en Regeling
@@ -114,7 +184,7 @@ void setup()
     // Initialiseer eerste waarden
     manageBrightness();
     setupBacklight();
-    setBacklight(50); // Zet backlight op volle helderheid tijdens setup
+    // setBacklight(50); // Zet backlight op volle helderheid tijdens setup
 
     // Initialise the screen
     tft.init();
@@ -139,24 +209,37 @@ void setup()
 
     // testje voor het weergeven van wat netwerk informatie
     // ... je code voor het informatiescherm ...
-    tft.setTextDatum(MC_DATUM);
+
     tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE);
+    tft.setTextSize(1);
     tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-    tft.drawString("SYSTEEM START", tft.width() / 2, 15);
-    tft.setCursor(12, 35);
+    tft.setTextDatum(BC_DATUM);
+    tft.drawString("SYSTEEM START", tft.width() / 2, tft.height() / 2 - 20);
+    tft.setTextDatum(CC_DATUM);
+    tft.setCursor(tft.width() / 2, tft.height() / 2);
     tft.print("IP:   " + WiFi.localIP().toString());
-    tft.setCursor(12, 48);
+    tft.setTextDatum(CC_DATUM);
+    tft.setCursor(tft.width() / 2, tft.height() / 2 + 20);
     tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
-    delay(4000);
+    delay(5000);
+    tft.fillScreen(TFT_BLACK);
 }
 
-// =========================================================================
-// Loop
-// =========================================================================
+/* =========================================================================
+ *                                   Loop
+ * =========================================================================
+ */
 void loop()
 {
     // 1. Haal de nieuwste tijd op in de variabelen
     updateLocalTime();
+
+    // 1a. Update pressure reading from BMP280
+    if (bmp.begin()) {
+        float pressure = bmp.readPressure() / 100.0F; // Convert Pa to hPa
+        bmp_pressure_str = String(pressure, 1); // Format with 1 decimal place
+    }
 
     // 2. Bereken de seconden voor de klok
     float time_secs = (currentHour * 3600ULL) + (currentMinute * 60ULL) + currentSecond;
@@ -169,51 +252,66 @@ void loop()
 
     delay(100); // Korte pauze voor stabiliteit
 }
-// void loop()
-// {
-//     // Update time periodically
-//     if (targetTime < millis()) {
-
-//         // Update next tick time in 100 milliseconds for smooth movement
-//         targetTime = millis() + 100;
-
-//         // Increment time by 100 milliseconds
-//         time_secs += 0.100;
-
-//         // Midnight roll-over
-//         if (time_secs >= (60 * 60 * 24))
-//             time_secs = 0;
-
-//         // All graphics are drawn in sprite to stop flicker
-//         renderFace(time_secs);
-
-//         // Request time from NTP server and synchronise the local clock
-//         // (clock may pause since this may take >100ms)
-//         // syncTime();
-//         manageBrightness();
-//     }
-// }
-
-// =========================================================================
-// Draw the clock face in the sprite
-// =========================================================================
+/* =========================================================================
+ * Render the clock face in the sprite and push to TFT
+ */
 static void renderFace(float t)
 {
+    static unsigned long lastSensorRead = 0;
+    static float stablePressure = 0;
+    static float stableTemperature = 0;
+    static float stableAltitude = 0;
+    static float stableSeaLevelPressure = 0;
+    static float stableHumidity = 0;
     float h_angle = t * HOUR_ANGLE;
     float m_angle = t * MINUTE_ANGLE;
     float s_angle = t * SECOND_ANGLE;
+
+    // Update de sensor maar één keer per 2 minuten (120000 ms)
+    if (millis() - lastSensorRead > 120000 || lastSensorRead == 0) {
+        // float rawPressure = bmp.readPressure() / 100.0F;
+        // float rawTemperature = bmp.readTemperature();
+        // float rawAltitude = bmp.readAltitude(1013.25); // Standaard zeeniveau druk
+        // float rawSeaLevelPressure = bmp.seaLevelForAltitude(rawAltitude, rawPressure);
+
+        // Optioneel: Rond af op 1 decimaal om het geflikker in de cijfers te stoppen
+        // stablePressure = round(rawPressure * 10.0F) / 10.0F;
+        // stableTemperature = round(rawTemperature * 10.0F) / 10.0F;
+        // stableAltitude = round(rawAltitude * 10.0F) / 10.0F;
+        // stableSeaLevelPressure = round(rawSeaLevelPressure * 10.0F) / 10.0F;
+
+        // 1. Lees BMP280 (Luchtdruk en evt. Temp)
+        stablePressure = round(bmp.readPressure() / 100.0F); // Geen decimalen
+
+        // 2. Lees AHT20 (Luchtvochtigheid en Temp)
+        sensors_event_t humidity, temp;
+        aht.getEvent(&humidity, &temp);
+        stableHumidity = round(humidity.relative_humidity); // Geen decimalen
+        stableTemperature = round(temp.temperature * 10.0F) / 10.0F; // 1 decimaal voor temp
+
+        lastSensorRead = millis();
+
+        // Optioneel: Print naar serial voor controle
+        Serial.println("--- Sensoren bijgewerkt ---");
+        Serial.printf("T: %.1f C | P: %.0f hPa | H: %.0f%%\n", stableTemperature, stablePressure, stableHumidity);
+        Serial.println("--- Dag / Nacht modus ---");
+        Serial.print(isNightMode ? "Nachtmodus\n" : "Dagmodus\n");
+    }
+
+    uint16_t CLK_BG = isNightMode ? TFT_BLUE : TFT_WHITE;
+    // uint16_t bgColor = TFT_BLACK;
 
     // The face is completely redrawn - this can be done quickly
     clockFace.fillSprite(TFT_BLACK);
 
     // Draw the face circle
-    clockFace.fillSmoothCircle(CLOCK_R, CLOCK_R, CLOCK_R, CLOCK_BG);
+    clockFace.fillSmoothCircle(CLOCK_R, CLOCK_R, CLOCK_R, CLK_BG);
 
     // Set text datum to middle centre and the colour
     clockFace.setTextDatum(MC_DATUM);
 
     // The background colour will be read during the character rendering
-    clockFace.setTextColor(CLOCK_FG, CLOCK_BG);
+    clockFace.setTextColor(CLOCK_FG, CLK_BG);
 
     // Text offset adjustment
     constexpr uint32_t dialOffset = CLOCK_R - 10;
@@ -227,25 +325,41 @@ static void renderFace(float t)
     }
 
     // Add text (could be digital time...)
-    clockFace.setTextColor(LABEL_FG, CLOCK_BG);
-    clockFace.drawString("RD-web", CLOCK_R, CLOCK_R * 0.75);
+    clockFace.setTextColor(LABEL_FG, CLK_BG);
+    clockFace.setTextDatum(MC_DATUM);
+    clockFace.drawString("RD-web", CLOCK_R, CLOCK_R * 1.25);
+
+    clockFace.setTextDatum(MR_DATUM);
+    clockFace.drawFloat(stableTemperature, 1, CLOCK_R * 0.75, CLOCK_R * 0.5);
+    clockFace.setTextDatum(ML_DATUM);
+    clockFace.drawString("°C", CLOCK_R * 0.75 + 5, CLOCK_R * 0.5);
+
+    clockFace.setTextDatum(MR_DATUM);
+    clockFace.drawFloat(stableHumidity, 1, CLOCK_R * 1.25, CLOCK_R * 0.5);
+    clockFace.setTextDatum(ML_DATUM);
+    clockFace.drawString("%", CLOCK_R * 1.25 + 5, CLOCK_R * 0.5);
+
+    clockFace.setTextDatum(MR_DATUM); // Middle Right (voor het getal)
+    clockFace.drawFloat(stablePressure, 0, CLOCK_R, CLOCK_R * 0.75);
+    clockFace.setTextDatum(ML_DATUM); // Middle Left (voor de eenheid)
+    clockFace.drawString("hPa", CLOCK_R + 5, CLOCK_R * 0.75);
 
     // Draw minute hand
     getCoord(CLOCK_R, CLOCK_R, &xp, &yp, M_HAND_LENGTH, m_angle);
     clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 6.0f, CLOCK_FG);
-    clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 2.0f, CLOCK_BG);
+    clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 2.0f, CLK_BG);
 
     // Draw hour hand
     getCoord(CLOCK_R, CLOCK_R, &xp, &yp, H_HAND_LENGTH, h_angle);
     clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 6.0f, CLOCK_FG);
-    clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 2.0f, CLOCK_BG);
+    clockFace.drawWideLine(CLOCK_R, CLOCK_R, xp, yp, 2.0f, CLK_BG);
 
     // Draw the central pivot circle
     clockFace.fillSmoothCircle(CLOCK_R, CLOCK_R, 4, CLOCK_FG);
 
-    // Draw cecond hand
+    // Draw second hand
     getCoord(CLOCK_R, CLOCK_R, &xp, &yp, S_HAND_LENGTH, s_angle);
-    clockFace.drawWedgeLine(CLOCK_R, CLOCK_R, xp, yp, 2.5, 1.0, SECCOND_FG);
+    clockFace.drawWedgeLine(CLOCK_R, CLOCK_R, xp, yp, 2.5, 1.0, SECOND_FG);
     clockFace.pushSprite(5, 5, TFT_TRANSPARENT);
 }
 

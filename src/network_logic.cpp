@@ -2,24 +2,20 @@
  * (c)2026 R van Dorland
  */
 #include <Arduino.h>
-#include <TFT_eSPI.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <TFT_eSPI.h>
 
+#include "network_logic.h"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
-#include "network_logic.h"
 
 #include "helpers.h" // Nodig voor u8g2 en uitlijning
-
 
 // Globale variabele voor eerste start detectie
 extern bool eersteStart;
 extern TFT_eSPI tft;
-
-
-
 
 // Kleur definities
 #define BORDER TFT_LIGHTGREY // Randkleur voor de schermen
@@ -101,7 +97,7 @@ void setupOTA() // Gebruik DEVICE_MDNS_NAME uit secret.h
         tft.fillRect(15, tft.height() / 2 + 6, width - 2, 3, TFT_GREEN); // Binnenste vulling
     });
 
-    ArduinoOTA.begin();
     MDNS.begin(DEVICE_MDNS_NAME);
-    MDNS.addService("arduino", "tcp", 8266);
+    ArduinoOTA.begin();
+
 }
