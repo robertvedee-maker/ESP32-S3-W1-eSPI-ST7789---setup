@@ -10,31 +10,14 @@
 #include <time.h>
 #include <TFT_eSPI.h>
 
-// // 1. Hardware definities (Centraal op één plek!)
-// #define I2C_SDA 5
-// #define I2C_SCL 6
-
-// 2. Het u8g2 object bekend maken bij alle bestanden
-// Let op: type moet exact matchen met de constructor in main.cpp
-// Het u8g2 object wordt in main.cpp gedefinieerd, we vertellen de compiler dat het bestaat
-// extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2; // Pas het type aan naar jouw specifieke display type!
-
-// #define LCDWidth face.getViewportWidth()
-// #define LCDHeight face.getViewportHeight()
-// #define CHARHEIGHT 14 /*(face.get())*/
-// #define LINE_SPACE (CHARHEIGHT + 2)
-// #define ALIGN_CENTER(t) ((LCDWidth - (face.textWidth(t))) / 2)
-// #define ALIGN_RIGHT(t) (LCDWidth - face.textWidth(t))
-// #define ALIGN_LEFT 0
-// #define ALIGN_TOP CHARHEIGHT
-// #define ALIGN_BOTTOM LCDHeight
-// #define ALIGN_V_CENTER ((LCDHeight + CHARHEIGHT) / 2)
 
 extern unsigned long lastBrightnessCheck;
 extern const unsigned long brightnessInterval;
 
 extern double sunrise_local;
 extern double sunset_local;
+
+// extern int blPin;
 
 extern String sunriseStr;
 extern String sunsetStr;
@@ -78,6 +61,11 @@ static const char* const mo_nl[] PROGMEM = { "Jan", "Feb", "Mrt", "Apr", "Mei", 
 
     sprintf_P(buff, PSTR("%s.%02d %s %04d"), wday, timeInfo->tm_mday, month, timeInfo->tm_year + 1900);
     currentDateStr = String(buff);
+}
+
+[[maybe_unused]] inline void setBacklightBrightness(int brightness) {
+    // brightness waarde tussen 0 (uit) en 255 (max helderheid)
+    ledcWrite(TFT_BL, brightness);
 }
 
 #endif

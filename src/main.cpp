@@ -1,7 +1,6 @@
-#include <Arduino.h>
-
 #include "daynight.h"
 #include "network_logic.h" // Volgorde is hier erg belangrijk. niet aanpassen!
+#include <Arduino.h>
 #include <helpers.h>
 #include <secret.h>
 
@@ -23,6 +22,10 @@
 // https://github.com/Bodmer/TFT_eSPI/issues/905
 
 bool eersteStart = true; // Zorgt ervoor dat info éénmalig getoond wordt
+
+// const int blPin = 13; // Removed duplicate declaration - defined in header file
+const int freq = 5000; // 5 kHz is ideaal voor backlights
+const int resolution = 8; // 8-bit resolutie (0 - 255)
 
 #include "NotoSansBold15.h"
 
@@ -78,6 +81,9 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("Booting...");
+
+    ledcSetup(0, freq, resolution);
+    ledcAttachPin(TFT_BL, 0);
 
     // 2. Netwerk (nu lekker kort!)
     setupWiFi(SECRET_SSID, SECRET_PASS);
