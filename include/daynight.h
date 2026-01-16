@@ -7,8 +7,8 @@
 
 #include "secret.h"
 #include <Arduino.h>
+#include <TFT_eSPI.h>
 #include <SolarCalculator.h>
-// #include <U8g2lib.h> // Nodig voor het u8g2 object
 #include <time.h>
 
 // Functie declaratie

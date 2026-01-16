@@ -4,7 +4,7 @@
 #include <helpers.h>
 #include <secret.h>
 
-// #include <WiFi.h>
+#include <WiFi.h>
 // #include <time.h>
 // #include <SPI.h>
 
@@ -72,7 +72,6 @@ uint8_t currentSecond = 0;
 // Note: time_secs is now calculated in loop() using currentHour, currentMinute, currentSecond
 float time_secs = 0;
 
-
 // Load header after time_secs global variable has been created so it is in scope
 // #include "NTP_Time.h" // Attached to this sketch, see that tab for library needs
 
@@ -96,15 +95,18 @@ void setup()
     ledcAttachPin(TFT_BL, 0);
 
     // 2. Netwerk (nu lekker kort!)
-    setupWiFi(SECRET_SSID, SECRET_PASS);
+    setupWiFi();
 
     // fetchWeather(); // Haal direct het eerste weerbericht op
+    
+    // Note: ledcAttach is already used correctly for ESP32 Arduino Core v3.x
+    // ledcSetup + ledcAttachPin on lines 80-81 should be replaced with:
+    // ledcAttach(TFT_BL, freq, resolution);
 
     if (WiFi.status() == WL_CONNECTED) {
         toonNetwerkInfo(); // Deze functie bevat de 'rtc_info->reason' check
+        setupOTA();
     }
-
-    setupOTA(DEVICE_MDNS_NAME);
 
     // 3. Tijd en Regeling
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
@@ -134,12 +136,25 @@ void setup()
     renderFace(time_secs);
 
     targetTime = millis() + 100;
+
+    // testje voor het weergeven van wat netwerk informatie
+    // ... je code voor het informatiescherm ...
+    tft.setTextDatum(MC_DATUM);
+    tft.fillScreen(TFT_BLACK);
+    tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
+    tft.drawString("SYSTEEM START", tft.width() / 2, 15);
+    tft.setCursor(12, 35);
+    tft.print("IP:   " + WiFi.localIP().toString());
+    tft.setCursor(12, 48);
+    tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
+    delay(4000);
 }
 
 // =========================================================================
 // Loop
 // =========================================================================
-void loop() {
+void loop()
+{
     // 1. Haal de nieuwste tijd op in de variabelen
     updateLocalTime();
 
@@ -148,10 +163,10 @@ void loop() {
 
     // 3. Teken de klok
     renderFace(time_secs);
-    
+
     // 4. Regel de backlight (optioneel, kan ook in updateLocalTime)
-    manageBrightness(); 
-    
+    manageBrightness();
+
     delay(100); // Korte pauze voor stabiliteit
 }
 // void loop()

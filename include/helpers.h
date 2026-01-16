@@ -6,7 +6,6 @@
 #define HELPERS_H
 
 #include <Arduino.h>
-// #include <U8g2lib.h> // Nodig voor het u8g2 object
 #include "daynight.h"
 #include <TFT_eSPI.h>
 #include <time.h>

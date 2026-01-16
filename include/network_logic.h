@@ -5,118 +5,14 @@
 #ifndef NETWORK_LOGIC_H
 #define NETWORK_LOGIC_H
 
-#include "helpers.h" // Nodig voor u8g2 en uitlijning
-#include <Arduino.h>
-#include <ArduinoOTA.h>
-#include <ESPmDNS.h>
 #include <TFT_eSPI.h>
-#include <WiFi.h>
-#include <esp_system.h>
-#include <esp_wifi.h>
 
-// 2. Het u8g2 object bekend maken bij alle bestanden
-// Let op: type moet exact matchen met de constructor in main.cpp
-// Het u8g2 object wordt in main.cpp gedefinieerd, we vertellen de compiler dat het bestaat
-// extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
+// Belofte dat de variabele tft ergens bestaat
+extern TFT_eSPI tft; 
 
-extern String sunriseStr;
-extern String sunsetStr;
-extern String currentTimeStr;
-extern String currentDateStr;
-extern bool eersteStart;
-extern unsigned long lastBrightnessCheck;
-extern const unsigned long brightnessInterval;
-// extern const char* DEVICE_MDNS_NAME;
-TFT_eSPI tft;
-
-#define BORDER TFT_LIGHTGREY
-
-/**
- * Toont alleen netwerk informatie bij een "koude" start (stekker erin)
- * Bij een software herstart (na OTA) wordt dit overgeslagen.
- */
-// De 'toonNetwerkInfo' functie in network_logic.h
-void toonNetwerkInfo()
-{
-    esp_reset_reason_t reset_reason = esp_reset_reason();
-    // Controleer: Is dit een koude start (Power On) of handmatige Reset knop?
-
-    // We gebruiken de namen die de compiler zojuist zelf voorstelde:
-    if (reset_reason == ESP_RST_POWERON || reset_reason == ESP_RST_SW) {
-        // ... je code voor het informatiescherm ...
-        tft.setTextDatum(MC_DATUM);
-        tft.fillScreen(TFT_BLACK);
-        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-        tft.drawString("SYSTEEM START", tft.width() / 2, 15);
-
-        // u8g2.setFont(u8g2_font_helvR08_tf);
-        tft.setCursor(12, 35);
-        tft.print("IP:   " + WiFi.localIP().toString());
-        tft.setCursor(12, 48);
-        tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
-
-        // u8g2.sendBuffer();
-        delay(4000);
-    }
-
-    // Zet de vlag op false zodat de loop() weet dat we klaar zijn
-    eersteStart = false;
-}
-
-/**
- * WiFi SETUP
- */
-void setupWiFi(const char* ssid, const char* password)
-{
-    WiFi.setSleep(false); // Voorkom dat WiFi in slaap valt
-
-    WiFi.begin(ssid, password);
-    esp_wifi_set_max_tx_power(34);
-
-    unsigned long startAttemptTime = millis();
-    // u8g2.setFont(u8g2_font_helvR08_tf);
-
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 15000) {
-        tft.setTextDatum(MC_DATUM);
-        tft.fillScreen(TFT_BLACK);
-        tft.drawRoundRect(1, 1, tft.width() - 1, tft.height() - 1, 5, BORDER);
-        tft.drawString("WiFi Verbinden...", tft.width() / 2, tft.height() / 2);
-        delay(500);
-    }
-}
-
-/**
- * OTA SETUP
- */
-void setupOTA(const char* hostname)
-{
-    ArduinoOTA.setHostname(hostname);
-
-    ArduinoOTA.onStart([]() {
-        ; // Veiligheidshalve alle interrupts uitzetten om conflicten tijdens OTA te voorkomen bij het updaten.
-        // detachInterrupt(digitalPinToInterrupt());
-        tft.setTextDatum(MC_DATUM);
-        tft.fillScreen(TFT_BLACK);
-        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-        tft.drawString("OTA Update Start...", tft.width() / 2, tft.height() / 2);
-        //  2.sendBuffer();
-    });
-
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        tft.setTextDatum(MC_DATUM);
-        tft.fillScreen(TFT_BLACK);
-        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-        tft.drawString("Bezig met UPDATEN", tft.width() / 2, tft.height() / 2 - 10);
-        // Voortgangsbalkje
-        unsigned int width = (progress / (total / 100));
-        tft.drawRect(14, tft.height() / 2 + 5, 100, 5, TFT_WHITE); // Buitenste kader
-        tft.fillRect(15, tft.height() / 2 + 6, width - 2, 3, TFT_GREEN); // Binnenste vulling
-        // u8g2.sendBuffer();
-    });
-
-    ArduinoOTA.begin();
-    MDNS.begin(hostname);
-    MDNS.addService("arduino", "tcp", 8266);
-}
+// Belofte dat de functies bestaan (alleen de naam en de ;)
+void toonNetwerkInfo();
+void setupWiFi();
+void setupOTA();
 
 #endif

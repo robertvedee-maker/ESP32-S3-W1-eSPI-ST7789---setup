@@ -4,32 +4,37 @@
 
 #include "daynight.h"
 #include "helpers.h"
-#include "network_logic.h" // Zodat we bij de tijd-functies kunnen
+#include "network_logic.h" // Zodat we bij de tijd-functies kunnen komen
+#include <Arduino.h>
+#include <TFT_eSPI.h>
+#include <time.h>
+#include <SolarCalculator.h>
+
+// Tijd variabelen (gebruikt in manageBrightness)
+uint8_t currentHour = 0; // Extern gemaakt in main.cpp
+uint8_t currentMinute = 0; // Extern gemaakt in main.cpp
+uint8_t currentSecond = 0; // Extern gemaakt in main.cpp
+
+//  Backlight timing variabelen
+unsigned long lastBrightnessCheck = 0; // Extern gemaakt in helpers.h
+const unsigned long brightnessInterval = 10 * 60 * 1000; // Elke 10 minuten controleren (extern gemaakt in helpers.h)
+
+String sunriseStr; // Extern gemaakt in helpers.h
+String sunsetStr; // Extern gemaakt in helpers.h
+String currentTimeStr; // Extern gemaakt in helpers.h
+String currentDateStr; // Extern gemaakt in helpers.h
+
+double sunrise_local = 0; // Extern gemaakt in helpers.h
+double sunset_local = 0; // Extern gemaakt in helpers.h
+
+double latitude = SECRET_LAT; // Extern gemaakt in helpers.h
+double longitude = SECRET_LON; // Extern gemaakt in helpers.h
 
 // Forward declaration of setBacklight function
-extern void setBacklight(int brightness);
+extern void setBacklight(int brightness); // Defined in helpers.cpp
+bool isNightMode = false; // Houdt bij of we in nachtmodus zitten
 
-// Het u8g2 object wordt in main.cpp gedefinieerd, we vertellen de compiler dat het bestaat
-// extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2; // Pas het type aan naar jouw specifieke display type!
-
-// const char* TZ_INFO = SECRET_TZ_INFO;
-// const char* ntpServer = SECRET_NTP_SERVER;
-
-uint8_t currentHour = 0;
-uint8_t currentMinute = 0;
-uint8_t currentSecond = 0;
-
-String sunriseStr;
-String sunsetStr;
-
-double sunrise_local = 0;
-double sunset_local = 0;
-
-double latitude = SECRET_LAT;
-double longitude = SECRET_LON;
-
-bool isNightMode = false;
-
+// Beheer de helderheid van de backlight op basis van zonsopgang en zonsondergang
 void manageBrightness()
 {
     struct tm timeinfo;
@@ -69,13 +74,15 @@ void manageBrightness()
     }
 }
 
-void updateLocalTime() {
+// Update de globale tijd variabelen met de huidige lokale tijd
+void updateLocalTime()
+{
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
         // Als het ophalen mislukt (bijv. nog geen WiFi sync)
         return;
     }
-    currentHour   = timeinfo.tm_hour;
+    currentHour = timeinfo.tm_hour;
     currentMinute = timeinfo.tm_min;
     currentSecond = timeinfo.tm_sec;
 }
