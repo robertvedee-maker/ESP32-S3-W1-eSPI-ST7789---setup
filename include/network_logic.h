@@ -7,12 +7,11 @@
 
 #include <TFT_eSPI.h>
 
-// Belofte dat de variabele tft ergens bestaat
-extern TFT_eSPI tft; 
+
 
 // Belofte dat de functies bestaan (alleen de naam en de ;)
 void toonNetwerkInfo();
-void setupWiFi();
+void setupWiFi(const char* ssid, const char* password);
 void setupOTA();
 
 #endif

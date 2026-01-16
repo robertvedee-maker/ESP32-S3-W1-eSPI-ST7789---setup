@@ -11,6 +11,10 @@
 #include <SolarCalculator.h>
 #include <time.h>
 
+extern uint8_t currentHour;
+extern uint8_t currentMinute;
+extern uint8_t currentSecond;
+
 // Functie declaratie
 void manageBrightness();
 void updateDateTimeStrings(struct tm* timeInfo);
@@ -20,5 +24,7 @@ void setBacklight(int brightness);
 [[maybe_unused]] extern const char* ntpServer;
 [[maybe_unused]] extern const long gmtOffset_sec;
 [[maybe_unused]] extern const int daylightOffset_sec;
+
+void updateLocalTime();
 
 #endif

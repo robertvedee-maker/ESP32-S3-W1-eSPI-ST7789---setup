@@ -1,27 +1,25 @@
 /*
  * (c)2026 R van Dorland
  */
-
-#include "network_logic.h"
-
-#include "helpers.h" // Nodig voor u8g2 en uitlijning
 #include <Arduino.h>
+#include <TFT_eSPI.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
-#include <TFT_eSPI.h>
+
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
+#include "network_logic.h"
 
-extern String sunriseStr; // Extern gemaakt in helpers.h
-extern String sunsetStr; // Extern gemaakt in helpers.h
-extern String currentTimeStr; // Extern gemaakt in helpers.h
-extern String currentDateStr; // Extern gemaakt in helpers.h
-extern bool eersteStart; // Extern gemaakt in main.cpp
-extern unsigned long lastBrightnessCheck; // Extern gemaakt in helpers.h
-extern const unsigned long brightnessInterval; // Extern gemaakt in helpers.h
-extern const char* DEVICE_MDNS_NAME; // Extern gemaakt in secret.h
-extern TFT_eSPI tft; // Belofte dat de variabele tft ergens bestaat
+#include "helpers.h" // Nodig voor u8g2 en uitlijning
+
+
+// Globale variabele voor eerste start detectie
+extern bool eersteStart;
+extern TFT_eSPI tft;
+
+
+
 
 // Kleur definities
 #define BORDER TFT_LIGHTGREY // Randkleur voor de schermen
@@ -78,13 +76,13 @@ void setupWiFi(const char* ssid, const char* password)
 /**
  * OTA SETUP
  */
-void setupOTA(const char* hostname) // Gebruik DEVICE_MDNS_NAME uit secret.h
+void setupOTA() // Gebruik DEVICE_MDNS_NAME uit secret.h
 {
-    ArduinoOTA.setHostname(hostname);
+    ArduinoOTA.setHostname(DEVICE_MDNS_NAME);
 
     ArduinoOTA.onStart([]() {
         // Veiligheidshalve alle interrupts uitzetten om conflicten tijdens OTA te voorkomen bij het updaten.
-        detachInterrupt(digitalPinToInterrupt());
+        // detachInterrupt(digitalPinToInterrupt());
 
         tft.setTextDatum(MC_DATUM);
         tft.fillScreen(TFT_BLACK);
@@ -104,6 +102,6 @@ void setupOTA(const char* hostname) // Gebruik DEVICE_MDNS_NAME uit secret.h
     });
 
     ArduinoOTA.begin();
-    MDNS.begin(hostname);
+    MDNS.begin(DEVICE_MDNS_NAME);
     MDNS.addService("arduino", "tcp", 8266);
 }

@@ -62,10 +62,10 @@ TFT_eSprite clockFace = TFT_eSprite(&tft);
 // Time h:m:s
 uint8_t h = 0, m = 0, s = 0;
 
-// Global time variables updated by updateLocalTime()
-uint8_t currentHour = 0;
-uint8_t currentMinute = 0;
-uint8_t currentSecond = 0;
+// // Global time variables updated by updateLocalTime()
+// uint8_t currentHour = 0;
+// uint8_t currentMinute = 0;
+// uint8_t currentSecond = 0;
 
 // float time_secs = h * 3600 + m * 60 + s;
 // Bereken het totaal aantal seconden sinds middernacht op basis van JOUW variabelen
@@ -95,7 +95,7 @@ void setup()
     ledcAttachPin(TFT_BL, 0);
 
     // 2. Netwerk (nu lekker kort!)
-    setupWiFi();
+    setupWiFi(SECRET_SSID, SECRET_PASSWORD);
 
     // fetchWeather(); // Haal direct het eerste weerbericht op
     
@@ -105,7 +105,7 @@ void setup()
 
     if (WiFi.status() == WL_CONNECTED) {
         toonNetwerkInfo(); // Deze functie bevat de 'rtc_info->reason' check
-        setupOTA();
+        setupOTA(); //
     }
 
     // 3. Tijd en Regeling
