@@ -13,18 +13,19 @@
 // https://github.com/JChristensen/Timezone
 #include <Timezone.h>
 
-// Choose library to load
-#ifdef ARDUINO_ARCH_ESP8266
-// ESP8266
-#include <ESP8266WiFi.h>
-#elif (defined(ARDUINO_ARCH_MBED) || defined(ARDUINO_ARCH_RP2040)) && !defined(ARDUINO_RASPBERRY_PI_PICO_W)
-// RP2040 Nano Connect
-#include <WiFiNINA.h>
-#else
-// ESP32
-#include <WiFi.h>
-#endif
+// // Choose library to load
+// #ifdef ARDUINO_ARCH_ESP8266
+// // ESP8266
+// #include <ESP8266WiFi.h>
+// #elif (defined(ARDUINO_ARCH_MBED) || defined(ARDUINO_ARCH_RP2040)) && !defined(ARDUINO_RASPBERRY_PI_PICO_W)
+// // RP2040 Nano Connect
+// #include <WiFiNINA.h>
+// #else
+// // ESP32
+// #include <WiFi.h>
+// #endif
 
+#include <WiFi.h>
 #include <WiFiUdp.h>
 
 // A UDP instance to let us send and receive packets over UDP

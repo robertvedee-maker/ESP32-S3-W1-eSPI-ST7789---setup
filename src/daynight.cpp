@@ -10,6 +10,10 @@
 
 // const char* TZ_INFO = SECRET_TZ_INFO;
 // const char* ntpServer = SECRET_NTP_SERVER;
+
+String sunriseStr;
+String sunsetStr;
+
 double sunrise_local = 0;
 double sunset_local = 0;
 

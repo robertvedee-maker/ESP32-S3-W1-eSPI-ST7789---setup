@@ -9,10 +9,10 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <TFT_eSPI.h>
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
-#include <TFT_eSPI.h>
 
 // 2. Het u8g2 object bekend maken bij alle bestanden
 // Let op: type moet exact matchen met de constructor in main.cpp
@@ -26,11 +26,10 @@ extern String currentDateStr;
 extern bool eersteStart;
 extern unsigned long lastBrightnessCheck;
 extern const unsigned long brightnessInterval;
-extern const char* DEVICE_MDNS_NAME;
-extern TFT_eSPI face;
+// extern const char* DEVICE_MDNS_NAME;
+TFT_eSPI tft;
 
 #define BORDER TFT_LIGHTGREY
-
 
 /**
  * Toont alleen netwerk informatie bij een "koude" start (stekker erin)
@@ -45,17 +44,16 @@ void toonNetwerkInfo()
     // We gebruiken de namen die de compiler zojuist zelf voorstelde:
     if (reset_reason == ESP_RST_POWERON || reset_reason == ESP_RST_SW) {
         // ... je code voor het informatiescherm ...
-        // u8g2.clearBuffer();
-        // face.drawRFrame(0, 0, LCDWidth, LCDHeight, 5);
-        face.drawRoundRect(1, 1, LCDWidth - 2, LCDHeight - 2, 5, BORDER);
-        // u8g2.setFont(u8g2_font_helvR08_tf);
-        face.drawString(ALIGN_CENTER("SYSTEEM START"), 15, "SYSTEEM START");
+        tft.setTextDatum(MC_DATUM);
+        tft.fillScreen(TFT_BLACK);
+        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
+        tft.drawString("SYSTEEM START", tft.width() / 2, 15);
 
         // u8g2.setFont(u8g2_font_helvR08_tf);
-        face.setCursor(12, 35);
-        face.print("IP:   " + WiFi.localIP().toString());
-        face.setCursor(12, 48);
-        face.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
+        tft.setCursor(12, 35);
+        tft.print("IP:   " + WiFi.localIP().toString());
+        tft.setCursor(12, 48);
+        tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
 
         // u8g2.sendBuffer();
         delay(4000);
@@ -79,13 +77,10 @@ void setupWiFi(const char* ssid, const char* password)
     // u8g2.setFont(u8g2_font_helvR08_tf);
 
     while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 15000) {
-        const char* Msg = "WiFi Verbinden...";
-        // u8g2.clearBuffer();
-        // face.drawRFrame(0, 0, LCDWidth, LCDHeight, 5);
-        face.drawRoundRect(1, 1, LCDWidth - 2, LCDHeight - 2, 5, BORDER);
-         face.drawString(ALIGN_CENTER(Msg), ALIGN_V_CENTER, Msg);
-        face.drawString(ALIGN_CENTER(Msg), ALIGN_V_CENTER, Msg);
-        // u8g2.sendBuffer();
+        tft.setTextDatum(MC_DATUM);
+        tft.fillScreen(TFT_BLACK);
+        tft.drawRoundRect(1, 1, tft.width() - 1, tft.height() - 1, 5, BORDER);
+        tft.drawString("WiFi Verbinden...", tft.width() / 2, tft.height() / 2);
         delay(500);
     }
 }
@@ -100,26 +95,22 @@ void setupOTA(const char* hostname)
     ArduinoOTA.onStart([]() {
         ; // Veiligheidshalve alle interrupts uitzetten om conflicten tijdens OTA te voorkomen bij het updaten.
         // detachInterrupt(digitalPinToInterrupt());
-
-        const char* Msg = "OTA Update Start...";
-        // u8g2.clearBuffer();
-        // u8g2.setFont(u8g2_font_helvR08_tf);
-        // face.drawRFrame(0, 0, LCDWidth, LCDHeight, 5);
-        face.drawRoundRect(1, 1, LCDWidth - 2, LCDHeight - 2, 5, BORDER);
-        face.drawString(ALIGN_CENTER(Msg), ALIGN_V_CENTER, Msg);
+        tft.setTextDatum(MC_DATUM);
+        tft.fillScreen(TFT_BLACK);
+        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
+        tft.drawString("OTA Update Start...", tft.width() / 2, tft.height() / 2);
         //  2.sendBuffer();
     });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        const char* Msg = "Bezig met UPDATEN";
-        // u8g2.clearBuffer();
-        // face.drawRFrame(0, 0, LCDWidth, LCDHeight, 5);
-        face.drawRoundRect(1, 1, LCDWidth - 2, LCDHeight - 2, 5, BORDER);
-        face.drawString(ALIGN_CENTER(Msg), ALIGN_V_CENTER - 10, Msg);
+        tft.setTextDatum(MC_DATUM);
+        tft.fillScreen(TFT_BLACK);
+        tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
+        tft.drawString("Bezig met UPDATEN", tft.width() / 2, tft.height() / 2 - 10);
         // Voortgangsbalkje
         unsigned int width = (progress / (total / 100));
-        face.drawRect (14, ALIGN_V_CENTER + 5, 100, 5, TFT_WHITE);          // Buitenste kader
-        face.fillRect(15, ALIGN_V_CENTER + 6, width - 2, 3, TFT_GREEN);     // Binnenste vulling
+        tft.drawRect(14, tft.height() / 2 + 5, 100, 5, TFT_WHITE); // Buitenste kader
+        tft.fillRect(15, tft.height() / 2 + 6, width - 2, 3, TFT_GREEN); // Binnenste vulling
         // u8g2.sendBuffer();
     });
 
