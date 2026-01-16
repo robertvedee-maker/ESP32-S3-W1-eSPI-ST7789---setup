@@ -14,27 +14,13 @@
 // https://github.com/Bodmer/TFT_eSPI/issues/905
 
 #include "daynight.h"
+#include "environment_sensors.h"
 #include "network_logic.h" // Volgorde is hier erg belangrijk. niet aanpassen!
-#include <Adafruit_AHTX0.h>
-#include <Adafruit_BMP280.h>
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <WiFi.h>
 #include <helpers.h>
 #include <secret.h>
-
-Adafruit_BMP280 bmp; // use I2C interface
-Adafruit_Sensor* bmp_temp = bmp.getTemperatureSensor();
-Adafruit_Sensor* bmp_pressure = bmp.getPressureSensor();
-String bmp_pressure_str = "----"; // Variable to store pressure as string
-String bmp_temp_str = "----"; // Variable to store temperature as string
-String bmp_alt_str = "----"; // Variable to store altitude as string
-String bmp_hum_str = "----"; // Variable to store humidity as string
-String bmp_seaLevel_str = "----"; // Variable to store sea level pressure as string
-
-Adafruit_AHTX0 aht;
-Adafruit_Sensor* aht_temp;
-Adafruit_Sensor* aht_humidity;
 
 bool eersteStart = true; // Zorgt ervoor dat info éénmalig getoond wordt
 extern bool isNightMode; // Track day/night mode for clock display
@@ -71,16 +57,6 @@ TFT_eSprite clockFace = TFT_eSprite(&tft); // Sprite for clock face
 #define MINUTE_ANGLE SECOND_ANGLE / 60.0
 #define HOUR_ANGLE MINUTE_ANGLE / 12.0
 
-// // Sprite width and height
-// #define FACE_W CLOCK_R * 2 + 1
-// #define FACE_H CLOCK_R * 2 + 1
-
-// Time h:m:s
-uint8_t h = 0, m = 0, s = 0;
-
-// float time_secs = h * 3600 + m * 60 + s;
-// Bereken het totaal aantal seconden sinds middernacht op basis van JOUW variabelen
-// Note: time_secs is now calculated in loop() using currentHour, currentMinute, currentSecond
 float time_secs = 0;
 
 // Time for next tick
@@ -98,8 +74,6 @@ void updateLocalTime(); // Add forward declaration
 void setup()
 {
     Wire.begin(4, 5); // SDA = GPIO4, SCL = GPIO5
-    aht.begin();
-
     Serial.begin(115200);
     Serial.flush(); // Forceer de USB-stack om de verbinding te verversen
     // Serial.setDebugOutput(true);     // Forceer de USB poort om te herstarten
@@ -113,51 +87,7 @@ void setup()
     // Serial.println("--- DEBUG START ---");
     Serial.println("Booting...");
 
-    Serial.println(F("BMP280 Sensor event test"));
-    delay(1000);
-    unsigned status;
-    // status = bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID);
-    status = bmp.begin(0x77);
-    if (!status) {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                         "try a different address!"));
-        Serial.print("SensorID was: 0x");
-        Serial.println(bmp.sensorID(), 16);
-        Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
-        Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
-        Serial.print("        ID of 0x60 represents a BME 280.\n");
-        Serial.print("        ID of 0x61 represents a BME 680.\n");
-        while (1)
-            delay(10);
-    }
-
-    /* Default settings from datasheet. */
-    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL, /* Operating Mode. */
-        Adafruit_BMP280::SAMPLING_X2, /* Temp. oversampling */
-        Adafruit_BMP280::SAMPLING_X16, /* Pressure oversampling */
-        Adafruit_BMP280::FILTER_X16, /* Filtering. */
-        Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
-
-    bmp_temp->printSensorDetails();
-    bmp_pressure->printSensorDetails();
-
-    Serial.println("Adafruit AHT10/AHT20 test!");
-
-    if (!aht.begin()) {
-        Serial.println("Failed to find AHT10/AHT20 chip");
-        while (1) {
-            delay(10);
-        }
-    }
-
-    Serial.println("AHT10/AHT20 Found!");
-    aht_temp = aht.getTemperatureSensor();
-    aht_temp->printSensorDetails();
-
-    aht_humidity = aht.getHumiditySensor();
-    aht_humidity->printSensorDetails();
-
-    delay(2000);
+    setupSensors(); // Initialiseer de sensoren
 
     Serial.println(F("Setup started"));
     delay(2000);
@@ -232,23 +162,18 @@ void setup()
  */
 void loop()
 {
-    // 1. Haal de nieuwste tijd op in de variabelen
+    // Regel de backlight (optioneel, kan ook in updateLocalTime)
+    manageBrightness();
+
+
+    // Haal de nieuwste tijd op in de variabelen
     updateLocalTime();
 
-    // 1a. Update pressure reading from BMP280
-    if (bmp.begin()) {
-        float pressure = bmp.readPressure() / 100.0F; // Convert Pa to hPa
-        bmp_pressure_str = String(pressure, 1); // Format with 1 decimal place
-    }
-
-    // 2. Bereken de seconden voor de klok
+    // Bereken de seconden voor de klok
     float time_secs = (currentHour * 3600ULL) + (currentMinute * 60ULL) + currentSecond;
 
-    // 3. Teken de klok
+    // Teken de klok
     renderFace(time_secs);
-
-    // 4. Regel de backlight (optioneel, kan ook in updateLocalTime)
-    manageBrightness();
 
     delay(100); // Korte pauze voor stabiliteit
 }
@@ -269,31 +194,10 @@ static void renderFace(float t)
 
     // Update de sensor maar één keer per 2 minuten (120000 ms)
     if (millis() - lastSensorRead > 120000 || lastSensorRead == 0) {
-        // float rawPressure = bmp.readPressure() / 100.0F;
-        // float rawTemperature = bmp.readTemperature();
-        // float rawAltitude = bmp.readAltitude(1013.25); // Standaard zeeniveau druk
-        // float rawSeaLevelPressure = bmp.seaLevelForAltitude(rawAltitude, rawPressure);
-
-        // Optioneel: Rond af op 1 decimaal om het geflikker in de cijfers te stoppen
-        // stablePressure = round(rawPressure * 10.0F) / 10.0F;
-        // stableTemperature = round(rawTemperature * 10.0F) / 10.0F;
-        // stableAltitude = round(rawAltitude * 10.0F) / 10.0F;
-        // stableSeaLevelPressure = round(rawSeaLevelPressure * 10.0F) / 10.0F;
-
-        // 1. Lees BMP280 (Luchtdruk en evt. Temp)
-        stablePressure = round(bmp.readPressure() / 100.0F); // Geen decimalen
-
-        // 2. Lees AHT20 (Luchtvochtigheid en Temp)
-        sensors_event_t humidity, temp;
-        aht.getEvent(&humidity, &temp);
-        stableHumidity = round(humidity.relative_humidity); // Geen decimalen
-        stableTemperature = round(temp.temperature * 10.0F) / 10.0F; // 1 decimaal voor temp
-
+        readSensors();
         lastSensorRead = millis();
 
         // Optioneel: Print naar serial voor controle
-        Serial.println("--- Sensoren bijgewerkt ---");
-        Serial.printf("T: %.1f C | P: %.0f hPa | H: %.0f%%\n", stableTemperature, stablePressure, stableHumidity);
         Serial.println("--- Dag / Nacht modus ---");
         Serial.print(isNightMode ? "Nachtmodus\n" : "Dagmodus\n");
     }
