@@ -4,6 +4,7 @@
 
 #include "daynight.h"
 #include "helpers.h"
+#include "network_logic.h" // Zodat we bij de tijd-functies kunnen
 
 // Forward declaration of setBacklight function
 extern void setBacklight(int brightness);
@@ -13,6 +14,10 @@ extern void setBacklight(int brightness);
 
 // const char* TZ_INFO = SECRET_TZ_INFO;
 // const char* ntpServer = SECRET_NTP_SERVER;
+
+uint8_t currentHour = 0;
+uint8_t currentMinute = 0;
+uint8_t currentSecond = 0;
 
 String sunriseStr;
 String sunsetStr;
@@ -62,4 +67,15 @@ void manageBrightness()
             isNightMode = true;
         }
     }
+}
+
+void updateLocalTime() {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        // Als het ophalen mislukt (bijv. nog geen WiFi sync)
+        return;
+    }
+    currentHour   = timeinfo.tm_hour;
+    currentMinute = timeinfo.tm_min;
+    currentSecond = timeinfo.tm_sec;
 }

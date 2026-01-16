@@ -62,7 +62,16 @@ TFT_eSprite clockFace = TFT_eSprite(&tft);
 // Time h:m:s
 uint8_t h = 0, m = 0, s = 0;
 
-float time_secs = h * 3600 + m * 60 + s;
+// Global time variables updated by updateLocalTime()
+uint8_t currentHour = 0;
+uint8_t currentMinute = 0;
+uint8_t currentSecond = 0;
+
+// float time_secs = h * 3600 + m * 60 + s;
+// Bereken het totaal aantal seconden sinds middernacht op basis van JOUW variabelen
+// Note: time_secs is now calculated in loop() using currentHour, currentMinute, currentSecond
+float time_secs = 0;
+
 
 // Load header after time_secs global variable has been created so it is in scope
 // #include "NTP_Time.h" // Attached to this sketch, see that tab for library needs
@@ -73,6 +82,7 @@ uint32_t targetTime = 0;
 // Forward declarations
 static void renderFace(float t);
 void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a);
+void updateLocalTime(); // Add forward declaration
 
 // =========================================================================
 // Setup
@@ -129,30 +139,45 @@ void setup()
 // =========================================================================
 // Loop
 // =========================================================================
-void loop()
-{
-    // Update time periodically
-    if (targetTime < millis()) {
+void loop() {
+    // 1. Haal de nieuwste tijd op in de variabelen
+    updateLocalTime();
 
-        // Update next tick time in 100 milliseconds for smooth movement
-        targetTime = millis() + 100;
+    // 2. Bereken de seconden voor de klok
+    float time_secs = (currentHour * 3600ULL) + (currentMinute * 60ULL) + currentSecond;
 
-        // Increment time by 100 milliseconds
-        time_secs += 0.100;
-
-        // Midnight roll-over
-        if (time_secs >= (60 * 60 * 24))
-            time_secs = 0;
-
-        // All graphics are drawn in sprite to stop flicker
-        renderFace(time_secs);
-
-        // Request time from NTP server and synchronise the local clock
-        // (clock may pause since this may take >100ms)
-        // syncTime();
-        manageBrightness();
-    }
+    // 3. Teken de klok
+    renderFace(time_secs);
+    
+    // 4. Regel de backlight (optioneel, kan ook in updateLocalTime)
+    manageBrightness(); 
+    
+    delay(100); // Korte pauze voor stabiliteit
 }
+// void loop()
+// {
+//     // Update time periodically
+//     if (targetTime < millis()) {
+
+//         // Update next tick time in 100 milliseconds for smooth movement
+//         targetTime = millis() + 100;
+
+//         // Increment time by 100 milliseconds
+//         time_secs += 0.100;
+
+//         // Midnight roll-over
+//         if (time_secs >= (60 * 60 * 24))
+//             time_secs = 0;
+
+//         // All graphics are drawn in sprite to stop flicker
+//         renderFace(time_secs);
+
+//         // Request time from NTP server and synchronise the local clock
+//         // (clock may pause since this may take >100ms)
+//         // syncTime();
+//         manageBrightness();
+//     }
+// }
 
 // =========================================================================
 // Draw the clock face in the sprite
