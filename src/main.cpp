@@ -101,6 +101,8 @@ void setup()
 
     // Initialiseer eerste waarden
     manageBrightness();
+    setupBacklight();
+    setBacklight(50); // Zet backlight op volle helderheid tijdens setup
 
     // Initialise the screen
     tft.init();

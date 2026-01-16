@@ -14,6 +14,7 @@
 // Functie declaratie
 void manageBrightness();
 void updateDateTimeStrings(struct tm* timeInfo);
+void setBacklight(int brightness); 
 
 // Extern variabelen (zodat ze ook elders gebruikt kunnen worden indien nodig)
 [[maybe_unused]] extern const char* ntpServer;

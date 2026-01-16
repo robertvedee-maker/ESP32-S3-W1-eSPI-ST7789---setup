@@ -6,9 +6,7 @@
 #include "helpers.h"
 
 // Forward declaration of setBacklight function
-extern void setBacklight(uint8_t brightness);
-
-
+extern void setBacklight(int brightness);
 
 // Het u8g2 object wordt in main.cpp gedefinieerd, we vertellen de compiler dat het bestaat
 // extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2; // Pas het type aan naar jouw specifieke display type!
@@ -24,6 +22,8 @@ double sunset_local = 0;
 
 double latitude = SECRET_LAT;
 double longitude = SECRET_LON;
+
+bool isNightMode = false;
 
 void manageBrightness()
 {
@@ -51,13 +51,15 @@ void manageBrightness()
     // 5. Gebruik de lokale tijden voor de contrast-regeling
     double currentHour = timeinfo.tm_hour + (timeinfo.tm_min / 60.0);
 
-    // Pas het contrast aan op basis van de zon
-    if (currentHour > sunrise && currentHour < sunset) {
-        // face.setContrast(100); // Overdag fel
-        setBacklight(255); // Fel overdag
-
+    if (currentHour >= sunrise && currentHour < sunset) {
+        if (isNightMode) { // Was het net nacht? Dan nu naar dag-stand
+            setBacklight(255);
+            isNightMode = false;
+        }
     } else {
-        // face.setContrast(5); // 's Nachts gedimd
-        setBacklight(50); // Gedimd in de nacht
+        if (!isNightMode) { // Was het net dag? Dan nu naar nacht-stand
+            setBacklight(50);
+            isNightMode = true;
+        }
     }
 }

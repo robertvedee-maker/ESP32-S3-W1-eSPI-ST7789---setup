@@ -7,9 +7,12 @@
 
 #include <Arduino.h>
 // #include <U8g2lib.h> // Nodig voor het u8g2 object
-#include <time.h>
+#include "daynight.h"
 #include <TFT_eSPI.h>
+#include <time.h>
 
+void setupBacklight(); // Voeg deze toe
+void setBacklight(int brightness);
 
 extern unsigned long lastBrightnessCheck;
 extern const unsigned long brightnessInterval;
@@ -63,7 +66,10 @@ static const char* const mo_nl[] PROGMEM = { "Jan", "Feb", "Mrt", "Apr", "Mei", 
     currentDateStr = String(buff);
 }
 
-[[maybe_unused]] inline void setBacklightBrightness(int brightness) {
+void setBacklight(int brightness); 
+
+[[maybe_unused]] inline void setBacklightBrightness(int brightness)
+{
     // brightness waarde tussen 0 (uit) en 255 (max helderheid)
     ledcWrite(TFT_BL, brightness);
 }
