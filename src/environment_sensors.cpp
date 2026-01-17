@@ -9,6 +9,14 @@
 #include <TFT_eSPI.h>
 #include <Wire.h>
 
+// Define color constants if not defined elsewhere
+#ifndef LABEL_FG
+#define LABEL_FG TFT_WHITE
+#endif
+#ifndef CLK_BG
+#define CLK_BG TFT_BLACK
+#endif
+
 Adafruit_BMP280 bmp; // use I2C interface
 Adafruit_Sensor* bmp_temp = bmp.getTemperatureSensor();
 Adafruit_Sensor* bmp_pressure = bmp.getPressureSensor();
@@ -23,6 +31,9 @@ Adafruit_Sensor* aht_temp;
 Adafruit_Sensor* aht_humidity;
 
 // Variables to store stable sensor readings
+float temperature = 0.0F;
+float humidity = 0.0F;
+float pressure = 0.0F;
 float stablePressure = 0.0F;
 float stableTemperature = 0.0F;
 float stableHumidity = 0.0F;
@@ -31,6 +42,8 @@ float stableSeaLevelPressure = 0.0F;
 
 extern TFT_eSPI tft; // TFT instance from helpers.h
 extern TFT_eSprite clockFace; // Sprite for clock face
+
+extern int CLOCK_R; // Clock radius from helpers.h or main
 
 // extern FACE_H;
 // extern FACE_W;
@@ -86,7 +99,7 @@ void setupSensors()
     delay(500);
 }
 
-void readSensors()
+void getSensorReadings(float* temperature, float* humidity, float* pressure)
 {
     // float rawPressure = bmp.readPressure() / 100.0F;
     // float rawTemperature = bmp.readTemperature();
@@ -103,13 +116,47 @@ void readSensors()
     stablePressure = round(bmp.readPressure() / 100.0F); // Geen decimalen
 
     // 2. Lees AHT20 (Luchtvochtigheid en Temp)
-    sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);
-    stableHumidity = round(humidity.relative_humidity); // Geen decimalen
-    stableTemperature = round(temp.temperature * 10.0F) / 10.0F; // 1 decimaal voor temp
+    sensors_event_t humidityEvent, tempEvent;
+    aht.getEvent(&humidityEvent, &tempEvent);
+    stableHumidity = round(humidityEvent.relative_humidity); // Geen decimalen
+    stableTemperature = round(tempEvent.temperature * 10.0F) / 10.0F; // 1 decimaal voor temp
 
     // Optionally print to serial for verification
     Serial.println("--- Sensor Readings ---");
     Serial.printf("BMP280 P: %.2f hPa\n", stablePressure);
     Serial.printf("AHT20 T: %.2f C | H: %.2f %%\n", stableTemperature, stableHumidity);
+}
+
+void renderClockFace()
+{
+    static unsigned long lastSensorRead = 0;
+    static float stablePressure = 0;
+    static float stableTemperature = 0;
+    static float stableAltitude = 0;
+    static float stableSeaLevelPressure = 0;
+    static float stableHumidity = 0;
+    // float h_angle = t * HOUR_ANGLE;
+    // float m_angle = t * MINUTE_ANGLE;
+    // float s_angle = t * SECOND_ANGLE;
+
+     // Add text (could be digital time...)
+    clockFace.setTextColor(LABEL_FG, CLK_BG);
+    clockFace.setTextDatum(MC_DATUM);
+    clockFace.drawString("RD-web", CLOCK_R, CLOCK_R * 1.25);
+
+    clockFace.setTextDatum(MR_DATUM);
+    clockFace.drawFloat(stableTemperature, 1, CLOCK_R * 0.75, CLOCK_R * 0.5);
+    clockFace.setTextDatum(ML_DATUM);
+    clockFace.drawString("°C", CLOCK_R * 0.75 + 5, CLOCK_R * 0.5);
+
+    clockFace.setTextDatum(MR_DATUM);
+    clockFace.drawFloat(stableHumidity, 1, CLOCK_R * 1.25, CLOCK_R * 0.5);
+    clockFace.setTextDatum(ML_DATUM);
+    clockFace.drawString("%", CLOCK_R * 1.25 + 5, CLOCK_R * 0.5);
+
+    clockFace.setTextDatum(MR_DATUM); // Middle Right (voor het getal)
+    clockFace.drawFloat(stablePressure, 0, CLOCK_R, CLOCK_R * 0.75);
+    clockFace.setTextDatum(ML_DATUM); // Middle Left (voor de eenheid)
+    clockFace.drawString("hPa", CLOCK_R + 5, CLOCK_R * 0.75);
+
 }

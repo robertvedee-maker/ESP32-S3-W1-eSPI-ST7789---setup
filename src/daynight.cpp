@@ -63,15 +63,16 @@ void manageBrightness()
 
     if (currentHour >= sunrise && currentHour < sunset) {
         if (isNightMode) { // Was het net nacht? Dan nu naar dag-stand
-            setBacklight(255);
+            setBacklight(2);
             isNightMode = false;
         }
     } else {
         if (!isNightMode) { // Was het net dag? Dan nu naar nacht-stand
-            setBacklight(50);
+            setBacklight(100);
             isNightMode = true;
         }
     }
+
 }
 
 // Update de globale tijd variabelen met de huidige lokale tijd
@@ -85,4 +86,5 @@ void updateLocalTime()
     currentHour = timeinfo.tm_hour;
     currentMinute = timeinfo.tm_min;
     currentSecond = timeinfo.tm_sec;
+
 }

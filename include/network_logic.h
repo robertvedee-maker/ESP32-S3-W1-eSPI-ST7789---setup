@@ -7,8 +7,6 @@
 
 #include <TFT_eSPI.h>
 
-
-
 // Belofte dat de functies bestaan (alleen de naam en de ;)
 void toonNetwerkInfo();
 void setupWiFi(const char* ssid, const char* password);

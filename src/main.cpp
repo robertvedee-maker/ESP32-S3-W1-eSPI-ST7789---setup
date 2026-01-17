@@ -24,6 +24,9 @@
 
 bool eersteStart = true; // Zorgt ervoor dat info éénmalig getoond wordt
 extern bool isNightMode; // Track day/night mode for clock display
+extern float temperature; // Declared in environment_sensors
+extern float humidity; // Declared in environment_sensors
+extern float pressure; // Declared in environment_sensors
 
 // const int xxPin = ##; //  --- gedefinieerd in pio.ini ---
 const int freq = 5000; // 5 kHz is ideaal voor backlights
@@ -90,13 +93,7 @@ void setup()
     setupSensors(); // Initialiseer de sensoren
 
     Serial.println(F("Setup started"));
-    delay(2000);
-
-    // Setup complete the backlight PWM
-    // setupBacklight();
-    // 1. Backlight PWM setup for ESP32 Arduino Core v2.x
-    ledcSetup(0, freq, resolution);
-    ledcAttachPin(TFT_BL, 0);
+    delay(500);
 
     // 2. Netwerk (nu lekker kort!)
     setupWiFi(SECRET_SSID, SECRET_PASSWORD);
@@ -111,19 +108,16 @@ void setup()
     // 3. Tijd en Regeling
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
 
-    // Initialiseer eerste waarden
-    manageBrightness();
-    setupBacklight();
-    // setBacklight(50); // Zet backlight op volle helderheid tijdens setup
-
     // Initialise the screen
     tft.init();
-
-    // Ideally set orientation for good viewing angle range because
-    // the anti-aliasing effectiveness varies with screen viewing angle
-    // Usually this is when screen ribbon connector is at the bottom
     tft.setRotation(0);
     tft.fillScreen(TFT_BLACK);
+
+    // Initialiseer eerste waarden
+
+    setupBacklight(); // Initialiseer de backlight PWM
+    updateLocalTime();
+    manageBrightness();
 
     // Create the clock face sprite
     // clockFace.setColorDepth(8); // 8-bit will work, but reduces effectiveness of anti-aliasing
@@ -140,20 +134,20 @@ void setup()
     // testje voor het weergeven van wat netwerk informatie
     // ... je code voor het informatiescherm ...
 
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(TFT_WHITE);
-    tft.setTextSize(1);
-    tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-    tft.setTextDatum(BC_DATUM);
-    tft.drawString("SYSTEEM START", tft.width() / 2, tft.height() / 2 - 20);
-    tft.setTextDatum(CC_DATUM);
-    tft.setCursor(tft.width() / 2, tft.height() / 2);
-    tft.print("IP:   " + WiFi.localIP().toString());
-    tft.setTextDatum(CC_DATUM);
-    tft.setCursor(tft.width() / 2, tft.height() / 2 + 20);
-    tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
-    delay(5000);
-    tft.fillScreen(TFT_BLACK);
+    // tft.fillScreen(TFT_BLACK);
+    // tft.setTextColor(TFT_WHITE);
+    // tft.setTextSize(1);
+    // tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
+    // tft.setTextDatum(BC_DATUM);
+    // tft.drawString("SYSTEEM START", tft.width() / 2, tft.height() / 2 - 20);
+    // tft.setTextDatum(CC_DATUM);
+    // tft.setCursor(tft.width() / 2, tft.height() / 2);
+    // tft.print("IP:   " + WiFi.localIP().toString());
+    // tft.setTextDatum(CC_DATUM);
+    // tft.setCursor(tft.width() / 2, tft.height() / 2 + 20);
+    // tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
+    // delay(5000);
+    // tft.fillScreen(TFT_BLACK);
 }
 
 /* =========================================================================
@@ -162,12 +156,11 @@ void setup()
  */
 void loop()
 {
-    // Regel de backlight (optioneel, kan ook in updateLocalTime)
-    manageBrightness();
-
-
     // Haal de nieuwste tijd op in de variabelen
     updateLocalTime();
+
+    // Regel de backlight (optioneel, kan ook in updateLocalTime)
+    manageBrightness();
 
     // Bereken de seconden voor de klok
     float time_secs = (currentHour * 3600ULL) + (currentMinute * 60ULL) + currentSecond;
@@ -194,7 +187,20 @@ static void renderFace(float t)
 
     // Update de sensor maar één keer per 2 minuten (120000 ms)
     if (millis() - lastSensorRead > 120000 || lastSensorRead == 0) {
-        readSensors();
+        // readSensors();
+        // 1. Lees BMP280 (Luchtdruk en evt. Temp)
+        stablePressure = round(bmp.readPressure() / 100.0F); // Geen decimalen
+
+        // 2. Lees AHT20 (Luchtvochtigheid en Temp)
+        sensors_event_t humidity, temp;
+        aht.getEvent(&humidity, &temp);
+        stableHumidity = round(humidity.relative_humidity); // Geen decimalen
+        stableTemperature = round(temp.temperature * 10.0F) / 10.0F; // 1 decimaal voor temp
+
+        // Optionally print to serial for verification
+        Serial.println("--- Sensor Readings ---");
+        Serial.printf("BMP280 P: %.2f hPa\n", stablePressure);
+        Serial.printf("AHT20 T: %.2f C | H: %.2f %%\n", stableTemperature, stableHumidity);
         lastSensorRead = millis();
 
         // Optioneel: Print naar serial voor controle
@@ -227,7 +233,7 @@ static void renderFace(float t)
         getCoord(CLOCK_R, CLOCK_R, &xp, &yp, dialOffset, h * 360.0 / 12);
         clockFace.drawNumber(h, xp, 2 + yp);
     }
-
+    
     // Add text (could be digital time...)
     clockFace.setTextColor(LABEL_FG, CLK_BG);
     clockFace.setTextDatum(MC_DATUM);

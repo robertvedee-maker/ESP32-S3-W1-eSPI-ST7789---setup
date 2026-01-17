@@ -14,7 +14,10 @@ extern Adafruit_AHTX0 aht;
 
 // Functie declaratie
 void setupSensors();
-void readSensors();
+// void readSensors();
+void getSensorReadings();
+void renderClockFace();
+
 
 
 #endif
