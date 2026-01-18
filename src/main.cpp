@@ -151,15 +151,17 @@ void setup()
 void loop()
 {
 
-/*static int lastSentBrightness = -1;
-if (setBrightness != lastSentBrightness) {
-    ledcWrite(4, setBrightness);
-    lastSentBrightness = setBrightness;
-    Serial.printf("Hardware aangepast naar: %d\n", setBrightness);
-}
-*/
+    /*static int lastSentBrightness = -1;
+    if (setBrightness != lastSentBrightness) {
+        ledcWrite(4, setBrightness);
+        lastSentBrightness = setBrightness;
+        Serial.printf("Hardware aangepast naar: %d\n", setBrightness);
+    }
+    */
 
-    ledcWrite(4, setBrightness); // write to channel number 4}
+    manageBrightness();
+
+    // ledcWrite(4, setBrightness); // write to channel number 4}
 
     // Haal de nieuwste tijd op in de variabelen
     updateLocalTime();

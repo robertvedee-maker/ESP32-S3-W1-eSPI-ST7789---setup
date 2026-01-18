@@ -12,9 +12,9 @@
 #include <time.h>
 
 // Tijd variabelen (gebruikt in manageTimeFunctions)
-uint8_t currentHour = 0; 
+uint8_t currentHour = 0;
 uint8_t currentMinute = 0;
-uint8_t currentSecond = 0; 
+uint8_t currentSecond = 0;
 
 //  Backlight timing variabelen
 unsigned long lastBrightnessCheck = 0;
@@ -76,6 +76,12 @@ void manageTimeFunctions()
             setBrightness = SECRET_BL_Sunset;
         }
     }
+    // Serial.println("--- Helderheid / Dag-Nacht regeling ---");
+    // Serial.printf("Zonsopgang (lokaal): %.2f | Zonsondergang (lokaal): %.2f | Huidig uur: %.2f\n",
+    //     sunrise_local, sunset_local, currentHour);
+    // Serial.printf("isNightMode: %s | setBrightness: %d\n",
+    //     isNightMode ? "true" : "false", setBrightness);
+
 }
 
 // Update de globale tijd variabelen met de huidige lokale tijd
@@ -91,12 +97,15 @@ void updateLocalTime()
     currentSecond = timeinfo.tm_sec;
 }
 
+/* =========================================================================
+ * Beheer de helderheid van de backlight met een fade effect
+ * =========================================================================
+ */
 
-/*
-
-void manageBrightness() {
+void manageBrightness()
+{
     // Definieer hoe lang de overgang duurt in minuten (bijv. 60 minuten)
-    const int fadeDuration = 60; 
+    const int fadeDuration = 60;
     int targetBrightness = SECRET_BL_Sunrise; // Standaard dag-stand
 
     // 1. Bereken de huidige tijd in minuten vanaf middernacht
@@ -104,19 +113,23 @@ void manageBrightness() {
     int sunsetMinutes = (sunset_local * 60);
     int sunriseMinutes = (sunrise_local * 60);
 
+    // Serial.println("--- Brightness Management ---");
+    // Serial.printf("Huidige tijd (minuten): %d | Zonsopgang: %d | Zonsondergang: %d\n",
+    //     currentTotalMinutes, sunriseMinutes, sunsetMinutes);
+
+    // Serial.printf("Sunrise_local: %.2f | Sunset_local: %.2f\n", sunrise_local, sunset_local);
+
     // 2. Logica voor de overgang
     if (currentTotalMinutes >= sunsetMinutes && currentTotalMinutes < (sunsetMinutes + fadeDuration)) {
         // We zitten in de AVOND-FADE
         float progress = (float)(currentTotalMinutes - sunsetMinutes) / fadeDuration;
         // Bereken waarde tussen Dag (255) en Nacht (50)
         targetBrightness = SECRET_BL_Sunrise - (progress * (SECRET_BL_Sunrise - SECRET_BL_Sunset));
-    } 
-    else if (currentTotalMinutes >= sunriseMinutes && currentTotalMinutes < (sunriseMinutes + fadeDuration)) {
+    } else if (currentTotalMinutes >= sunriseMinutes && currentTotalMinutes < (sunriseMinutes + fadeDuration)) {
         // We zitten in de OCHTEND-FADE (optioneel)
         float progress = (float)(currentTotalMinutes - sunriseMinutes) / fadeDuration;
         targetBrightness = SECRET_BL_Sunset + (progress * (SECRET_BL_Sunrise - SECRET_BL_Sunset));
-    }
-    else if (currentTotalMinutes >= (sunsetMinutes + fadeDuration) || currentTotalMinutes < sunriseMinutes) {
+    } else if (currentTotalMinutes >= (sunsetMinutes + fadeDuration) || currentTotalMinutes < sunriseMinutes) {
         // Het is echt nacht
         targetBrightness = SECRET_BL_Sunset;
     } else {
@@ -125,7 +138,10 @@ void manageBrightness() {
     }
 
     // 3. Update de globale variabele
-    setBrightness = (int)targetBrightness;
+    // setBrightness = (int)targetBrightness;
+    // De diesel-methode: rustig en veilig
+    int finalValue = (int)targetBrightness;
+    setBrightness = constrain(finalValue, SECRET_BL_Sunset, SECRET_BL_Sunrise);
 
     // 4. Stuur alleen naar hardware bij verandering (zoals we net bespraken)
     static int lastSentBrightness = -1;
@@ -133,15 +149,18 @@ void manageBrightness() {
         ledcWrite(4, setBrightness);
         lastSentBrightness = setBrightness;
     }
+
+    // 5. Optioneel: Log de verandering naar Serial
+    static int lastLoggedBrightness = -1;
+    if (setBrightness != lastLoggedBrightness) {
+        Serial.printf(">>> Helderheid aangepast: %d (Modus: %s)\n",
+            setBrightness, isNightMode ? "Nacht" : "Dag");
+        lastLoggedBrightness = setBrightness;
+    }
 }
 
-
+/*
 // Voeg dit toe net voordat je de waarde naar de hardware stuurt
 setBrightness = constrain((int)targetBrightness, SECRET_BL_Sunset, SECRET_BL_Sunrise);
-
-
-// De diesel-methode: rustig en veilig
-int finalValue = (int)targetBrightness;
-setBrightness = constrain(finalValue, 0, 255); 
 
 */
