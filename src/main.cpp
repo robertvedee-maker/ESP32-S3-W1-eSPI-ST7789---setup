@@ -27,6 +27,11 @@ extern bool isNightMode; // Track day/night mode for clock display
 extern float temperature; // Declared in environment_sensors
 extern float humidity; // Declared in environment_sensors
 extern float pressure; // Declared in environment_sensors
+extern int setBrightness; // Desired backlight brightness
+extern double sunrise_local; // Local sunrise time (hours)
+extern double sunset_local; // Local sunset time (hours)
+extern String sunriseStr;
+extern String sunsetStr;
 
 // const int xxPin = ##; //  --- gedefinieerd in pio.ini ---
 const int freq = 5000; // 5 kHz is ideaal voor backlights
@@ -69,6 +74,7 @@ uint32_t targetTime = 0;
 static void renderFace(float t);
 void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a);
 void updateLocalTime(); // Add forward declaration
+void manageTimeFunctions(); // Add forward declaration
 
 /* =========================================================================
  *                                   Setup
@@ -76,7 +82,8 @@ void updateLocalTime(); // Add forward declaration
  */
 void setup()
 {
-    Wire.begin(4, 5); // SDA = GPIO4, SCL = GPIO5
+    Wire.begin(I2C_SDA, I2C_SCL); // SDA, SCL pins
+
     Serial.begin(115200);
     Serial.flush(); // Forceer de USB-stack om de verbinding te verversen
     // Serial.setDebugOutput(true);     // Forceer de USB poort om te herstarten
@@ -91,11 +98,19 @@ void setup()
     Serial.println("Booting...");
 
     setupSensors(); // Initialiseer de sensoren
+    // setupBacklight();
 
     Serial.println(F("Setup started"));
     delay(500);
 
-    // 2. Netwerk (nu lekker kort!)
+    // Initialise the screen
+    tft.init();
+    tft.setRotation(1);
+    pinMode(TFT_BL, OUTPUT); // TFT backlight pin
+    digitalWrite(TFT_BL, LOW); // TFT backlight off
+    tft.fillScreen(TFT_BLACK);
+
+    // Netwerk en OTA initialisatie
     setupWiFi(SECRET_SSID, SECRET_PASSWORD);
 
     // fetchWeather(); // Haal direct het eerste weerbericht op
@@ -105,19 +120,10 @@ void setup()
         setupOTA(); // Start OTA service nadat WiFi verbonden is
     }
 
-    // 3. Tijd en Regeling
+    // Tijd en Regeling
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
-
-    // Initialise the screen
-    tft.init();
-    tft.setRotation(0);
-    tft.fillScreen(TFT_BLACK);
-
-    // Initialiseer eerste waarden
-
-    setupBacklight(); // Initialiseer de backlight PWM
     updateLocalTime();
-    manageBrightness();
+    manageTimeFunctions();
 
     // Create the clock face sprite
     // clockFace.setColorDepth(8); // 8-bit will work, but reduces effectiveness of anti-aliasing
@@ -131,23 +137,11 @@ void setup()
 
     targetTime = millis() + 100;
 
-    // testje voor het weergeven van wat netwerk informatie
-    // ... je code voor het informatiescherm ...
+    ledcSetup(4, 12000, 8); // ledc: 4  => Group: 0, Channel: 2, Timer: 1, led frequency, resolution  bits
+    ledcAttachPin(TFT_BL, 4); // gpio number and channel
+    // ledcWrite(4, 1); // write to channel number 4}
 
-    // tft.fillScreen(TFT_BLACK);
-    // tft.setTextColor(TFT_WHITE);
-    // tft.setTextSize(1);
-    // tft.drawRoundRect(1, 1, tft.width() - 2, tft.height() - 2, 5, BORDER);
-    // tft.setTextDatum(BC_DATUM);
-    // tft.drawString("SYSTEEM START", tft.width() / 2, tft.height() / 2 - 20);
-    // tft.setTextDatum(CC_DATUM);
-    // tft.setCursor(tft.width() / 2, tft.height() / 2);
-    // tft.print("IP:   " + WiFi.localIP().toString());
-    // tft.setTextDatum(CC_DATUM);
-    // tft.setCursor(tft.width() / 2, tft.height() / 2 + 20);
-    // tft.print("mDNS: " + String(DEVICE_MDNS_NAME) /* + ".local"*/);
-    // delay(5000);
-    // tft.fillScreen(TFT_BLACK);
+    // digitalWrite(TFT_BL, HIGH); // TFT backlight on
 }
 
 /* =========================================================================
@@ -156,11 +150,22 @@ void setup()
  */
 void loop()
 {
+
+/*static int lastSentBrightness = -1;
+if (setBrightness != lastSentBrightness) {
+    ledcWrite(4, setBrightness);
+    lastSentBrightness = setBrightness;
+    Serial.printf("Hardware aangepast naar: %d\n", setBrightness);
+}
+*/
+
+    ledcWrite(4, setBrightness); // write to channel number 4}
+
     // Haal de nieuwste tijd op in de variabelen
     updateLocalTime();
 
     // Regel de backlight (optioneel, kan ook in updateLocalTime)
-    manageBrightness();
+    manageTimeFunctions();
 
     // Bereken de seconden voor de klok
     float time_secs = (currentHour * 3600ULL) + (currentMinute * 60ULL) + currentSecond;
@@ -169,6 +174,9 @@ void loop()
     renderFace(time_secs);
 
     delay(100); // Korte pauze voor stabiliteit
+
+    // ledcWrite(4, 50); // write to channel number 4}
+    // ledcWrite(4, 0); // write to channel number 4}
 }
 /* =========================================================================
  * Render the clock face in the sprite and push to TFT
@@ -206,6 +214,8 @@ static void renderFace(float t)
         // Optioneel: Print naar serial voor controle
         Serial.println("--- Dag / Nacht modus ---");
         Serial.print(isNightMode ? "Nachtmodus\n" : "Dagmodus\n");
+        Serial.printf(isNightMode ? "setBrightness: %d\n" : "setBrightness: %d\n", setBrightness);
+        Serial.printf("Zonsopgang: %s | Zonsondergang: %s\n", sunriseStr.c_str(), sunsetStr.c_str());
     }
 
     uint16_t CLK_BG = isNightMode ? TFT_BLUE : TFT_WHITE;
@@ -233,7 +243,7 @@ static void renderFace(float t)
         getCoord(CLOCK_R, CLOCK_R, &xp, &yp, dialOffset, h * 360.0 / 12);
         clockFace.drawNumber(h, xp, 2 + yp);
     }
-    
+
     // Add text (could be digital time...)
     clockFace.setTextColor(LABEL_FG, CLK_BG);
     clockFace.setTextDatum(MC_DATUM);
@@ -245,9 +255,9 @@ static void renderFace(float t)
     clockFace.drawString("°C", CLOCK_R * 0.75 + 5, CLOCK_R * 0.5);
 
     clockFace.setTextDatum(MR_DATUM);
-    clockFace.drawFloat(stableHumidity, 1, CLOCK_R * 1.25, CLOCK_R * 0.5);
+    clockFace.drawFloat(stableHumidity, 1, CLOCK_R * 1.4, CLOCK_R * 0.5);
     clockFace.setTextDatum(ML_DATUM);
-    clockFace.drawString("%", CLOCK_R * 1.25 + 5, CLOCK_R * 0.5);
+    clockFace.drawString("%", CLOCK_R * 1.4 + 5, CLOCK_R * 0.5);
 
     clockFace.setTextDatum(MR_DATUM); // Middle Right (voor het getal)
     clockFace.drawFloat(stablePressure, 0, CLOCK_R, CLOCK_R * 0.75);
